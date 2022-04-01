@@ -60,7 +60,7 @@ def plot_image(image, ellipses):
     ax = plt.gca()
     ax.imshow(image, cmap='gray', aspect='auto')
     # Draw each Ellipse
-    print(ellipses['positions'])
+    #print(ellipses['positions'])
     for i in range(len(ellipses['positions'])):
         nsig = 1.7
         ax.add_patch(Ellipse(ellipses['positions'][i], 
