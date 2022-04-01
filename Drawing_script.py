@@ -41,10 +41,11 @@ def ellipse_data(gmm):
     angles = []
     # Get ellipse data
     for position, covariance in zip(gmm.means_, gmm.covariances_):
+        position[1] = -position[1]
         positions.append(position)
         if covariance.shape == (2, 2):
             U, s, _ = np.linalg.svd(covariance)
-            angle = np.degrees(np.arctan2(U[1, 0], U[0, 0]))
+            angle = -np.degrees(np.arctan2(U[1, 0], U[0, 0]))
             width, height = 2 * np.sqrt(s)
         else:
             angle = 0
@@ -56,15 +57,17 @@ def ellipse_data(gmm):
     return data
 
 def plot_image(image, ellipses):
-    plt.imshow(image, cmap='gray', aspect='auto')
+    ax = plt.gca()
+    ax.imshow(image, cmap='gray', aspect='auto')
     # Draw each Ellipse
+    print(ellipses['positions'])
     for i in range(len(ellipses['positions'])):
         nsig = 1.7
-        plt.gca().add_patch(Ellipse(ellipses['positions'][i], 
+        ax.add_patch(Ellipse(ellipses['positions'][i], 
                             nsig * ellipses['widths'][i], 
                             nsig * ellipses['heights'][i],
                             ellipses['angles'][i],
-                            color='k',
+                            color='w',
                             fill=False))
     plt.show()
 
@@ -79,8 +82,12 @@ def main(path):
     gmm, labels = do_gmm(6, pixels)
     # Get ellipses data
     ellipses = ellipse_data(gmm)
+    # Loop through ellipses and check that they fit
+
     # Plot black and white image with ellipses on top
-    plot_image(white_horse, ellipses)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = Image.fromarray(image)
+    plot_image(image, ellipses)
 
 if __name__ == "__main__":
     main("Images/horse.png")
