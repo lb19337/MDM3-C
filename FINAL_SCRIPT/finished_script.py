@@ -203,16 +203,6 @@ def check_ellipses(ellipses, pixels, labels, image_dims):
 
 
 
-""" Function for iterative looping """
-def gmm_iter(pixels):
-    # do gmm
-    gmm, labels = do_gmm(2, pixels)
-    # get ellipses
-    ellipses = ellipse_data(gmm)
-    # check ellipses
-    good_ellipses, faulty_clusters = check_ellipses(ellipses, pixels, labels)
-
-
 
 """ Plotting finished product """
 def clear_plt():
@@ -221,25 +211,51 @@ def clear_plt():
     plt.cla()
     plt.clf()
 
+def get_simple_outline(bw_image):
+    """
+    Gets the simple outline edges
+    """
+    edges = cv2.Canny(bw_image, 80, 255)
+    return edges
 
-def plot_image(image, finished_ellipses):
+def get_complex_outline(image):
+    """
+    Gets the complex outline edges
+    """
+    edges = cv2.Canny(image, 60, 255)
+    return edges
+
+def final_plot(pixels, finished_ellipses, bw_image=None, image=None):
     """
     Plot the final image with the ellipses drawn on
     """
     clear_plt()
     ax = plt.gca()
-    ax.scatter(image[:,0], image[:,1], s=0.5, c='w')
+    if bw_image is not None:
+        # plot simple edges
+        simple_outline = get_simple_outline(bw_image)
+        ax.imshow(simple_outline, cmap='binary', aspect='auto')
+    if image is not None:
+        # plot complex edges
+        complex_outline = get_complex_outline(image)
+        ax.imshow(complex_outline, cmap='binary', aspect='auto')
+    if bw_image is None and image is None:
+        ax.scatter(pixels[:,0], pixels[:,1], s=0.5, c='w')
+    # plot ellipses
     for ellipse in finished_ellipses:
         ellipse.set_fill(False)
+        ellipse.set_linewidth(0.5)
+        if bw_image is not None or image is not None:
+            ellipse.center = (ellipse.center[0], -ellipse.center[1])
+            ellipse.angle = -ellipse.angle
         patch_cpy = copy(ellipse)
         # cut the umbilical cord the hard way
         patch_cpy.axes = None
         patch_cpy.figure = None
         patch_cpy.set_transform(ax.transData)
         ax.add_patch(patch_cpy)
+    plt.axis('off')
     plt.show()
-
-
 
 
 
@@ -281,11 +297,9 @@ def main(path):
             finished_ellipses += g_ellipses
         # Change list of faulty clusters
         faulty_clusters = f_clusters
+    # Final plot
+    final_plot(pixels, finished_ellipses)
 
-    # Plot black and white image with ellipses on top
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    image = Image.fromarray(image)
-    plot_image(pixels, finished_ellipses)
 
 if __name__ == "__main__":
     main("Images/horse.png")
