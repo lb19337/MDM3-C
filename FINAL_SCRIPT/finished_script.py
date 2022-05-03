@@ -228,7 +228,7 @@ def plot_image(image, finished_ellipses):
     """
     clear_plt()
     ax = plt.gca()
-    ax.scatter(image[:,0], image[:,1], s=0.5, c='b')
+    ax.scatter(image[:,0], image[:,1], s=0.5, c='w')
     for ellipse in finished_ellipses:
         ellipse.set_fill(False)
         patch_cpy = copy(ellipse)
