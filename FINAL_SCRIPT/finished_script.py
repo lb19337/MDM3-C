@@ -239,7 +239,17 @@ def plot_image(image, finished_ellipses):
         ax.add_patch(patch_cpy)
     plt.show()
 
+def plot_simple_outline(bw_image):
+    # Outline detection to find edges
+    edges = cv2.Canny(bw_image, 80, 255)
+    plt.imshow(edges, cmap= 'binary', aspect='auto')
+    plt.show()
 
+def plot_complex_outline(image):
+    # Outline detection to find edges
+    edges = cv2.Canny(image, 60, 255)
+    plt.imshow(edges, cmap= 'binary', aspect='auto')
+    plt.show()
 
 
 
@@ -286,6 +296,9 @@ def main(path):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     image = Image.fromarray(image)
     plot_image(pixels, finished_ellipses)
+    plot_simple_outline(white_horse)
+    plot_complex_outline(image)
+
 
 if __name__ == "__main__":
     main("Images/horse.png")
