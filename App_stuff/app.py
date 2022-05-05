@@ -260,6 +260,31 @@ def get_complex_outline(image):
     edges = cv2.Canny(image, 60, 255)
     return edges
 
+def find_optimum(pixels,trials):
+    s1 = trials
+    scores = [0] * s1
+
+    for i in range(1, s1):
+        gmm, labels = do_gmm(i, pixels)
+        scores[i] = gmm.score(pixels) * -1
+
+    d1 = np.zeros((s1))
+    d2 = np.zeros((s1))
+    strength = np.zeros((s1))
+    rstr = np.zeros((s1))
+
+    for i in range(s1):
+        if i > 0:
+            d1[i] = scores[i - 1] - scores[i]
+            if i > 1:
+                d2[i] = d1[i - 1] - d1[i]
+                strength[i - 1] = d2[i] - d1[i]
+                rstr[i-1] = strength[i-1]/(i-1)
+
+    #opt = np.where(rstr == np.max(rstr))
+    opt = np.where(strength == np.max(strength))
+    return opt
+
 """ Main function """
 
 def gather_ellipses(path):
@@ -268,14 +293,17 @@ def gather_ellipses(path):
     """
     # Read in image from path
     image = cv2.imread(path)
+    im_dim = image.shape
     # Convert to black and white
     white_horse = colour2bw(image)
     # Get dimensions
     image_dims = white_horse.shape
     # Convert to pixels
     pixels = image2pixels(white_horse)
+    # Find optimum num_components
+    opt = find_optimum(pixels,9)
     # Do gmm
-    gmm, labels = do_gmm(6, pixels)
+    gmm, labels = do_gmm(opt[0][0], pixels)
     # Get ellipses data
     ellipses = ellipse_data(gmm)
     # Loop through ellipses and check that they fit
@@ -298,16 +326,93 @@ def gather_ellipses(path):
             finished_ellipses += g_ellipses
         # Change list of faulty clusters
         faulty_clusters = f_clusters
-    return pixels, finished_ellipses
+    simple_outline = get_simple_outline(white_horse)
+    complex_outline = get_complex_outline(image)
+    return im_dim, finished_ellipses, simple_outline, complex_outline
 
 
 """ ELLIPSE/OUTLINE SCREEN """
-def drawing_screen(canvas, image_path):
-    """
-    Screen for drawing 
-    """
-    # Do all the gmm checking ellipses techincal stuff
-    pixels, finished_ellipses = gather_ellipses(image_path)
+
+
+
+def plot_simple_outline(ax, simple_outline):
+    ax.imshow(simple_outline, cmap='binary', aspect='auto')
+    return ax
+
+def plot_complex_outline(ax, complex_outline):
+    ax.imshow(complex_outline, cmap='binary', aspect='auto')
+    return ax
+
+def plot_ellipses(ax, ellipses):
+    for ellipse in ellipses:
+        ellipse.center = (ellipse.center[0], -ellipse.center[1])
+        ellipse.angle = -ellipse.angle
+        ellipse.set_fill(False)
+        ellipse.set_linewidth(0.3)
+        patch_cpy = copy(ellipse)
+        # cut the umbilical cord the hard way
+        patch_cpy.axes = None
+        patch_cpy.figure = None
+        patch_cpy.set_transform(ax.transData)
+        ax.add_patch(patch_cpy)
+    return ax
+
+def plot_solo_ellipses(ax, im_dim, ellipses):
+    white_bg = np.zeros(im_dim,dtype=np.uint8)
+    white_bg.fill(255)
+    ax.imshow(white_bg, cmap='binary', aspect='auto')
+    ax = plot_ellipses(ax, ellipses)
+    return ax
+
+def make_c4nvas(im_dim=None, ellipses=None,simple_outline=None,complex_outline=None):
+
+    # Create figure to show image on 
+    image_fig = Figure(figsize=(3,3))
+    image_subplot = image_fig.add_subplot(1,1,1)
+
+    # Plot whichever has been selected 
+    if simple_outline is not None:
+        image_subplot = plot_simple_outline(image_subplot, simple_outline)
+    if complex_outline is not None:
+        image_subplot = plot_complex_outline(image_subplot, complex_outline)
+    if ellipses is not None:
+        image_subplot = plot_solo_ellipses(image_subplot, im_dim, ellipses)
+    if ellipses is None and simple_outline is None and complex_outline is None:
+        white_bg = np.zeros(im_dim,dtype=np.uint8)
+        white_bg.fill(255)
+        image_subplot.imshow(white_bg, cmap='binary', aspect='auto')
+    
+    image_subplot.axis('off')
+
+    # Draw canvas
+    c4nvas = FigureCanvasTkAgg(image_fig, canvas)
+    c4nvas.draw()
+
+    return c4nvas
+    
+def place_c4nvas(c4nvas, prev_c4nvases=[]):
+    for c4nva in prev_c4nvases:
+        c4nva.get_tk_widget().place_forget()
+    c4nvas.get_tk_widget().place(relx=0.65,rely=0.4, anchor="center")
+
+def black_pix_white(image):
+    # get (i, j) positions of all RGB pixels that are black (i.e. [0, 0, 0])
+    black_pixels = np.where(
+        (image[:, :, 0] == 0) & 
+        (image[:, :, 1] == 0) & 
+        (image[:, :, 2] == 0)
+    )
+
+    # set those pixels to white
+    image[black_pixels] = [255, 255, 255]
+    return image
+
+def horse_image_w_maker(canvas, image_path):
+    image = cv2.imread(image_path)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+    image = black_pix_white(image)
+
 
     # Clear current canvas
     clear_canvas(canvas)
@@ -316,25 +421,64 @@ def drawing_screen(canvas, image_path):
     image_fig = Figure(figsize=(3,3))
     image_subplot = image_fig.add_subplot(1,1,1)
 
-    image_subplot.scatter(pixels[:,0], pixels[:,1], s=0.5, c='w')
-    # plot ellipses
-    for ellipse in finished_ellipses:
-        ellipse.set_fill(False)
-        ellipse.set_linewidth(0.5)
-        patch_cpy = copy(ellipse)
-        # cut the umbilical cord the hard way
-        patch_cpy.axes = None
-        patch_cpy.figure = None
-        patch_cpy.set_transform(image_subplot.transData)
-        image_subplot.add_patch(patch_cpy)
-        image_subplot.axis('off')
+    # Plot image
+    image_subplot.imshow(image, aspect='auto')
+    image_subplot.axis('off')
 
     # Draw canvas
     c4nvas = FigureCanvasTkAgg(image_fig, canvas)
     c4nvas.draw()
 
-    # Place canvas
-    c4nvas.get_tk_widget().place(relx=0.5,rely=0.4, anchor="center")
+    return c4nvas
+
+
+def drawing_screen(canvas, image_path):
+    """
+    Screen for drawing 
+    """
+    # Do all the gmm checking ellipses techincal stuff
+    im_dim, finished_ellipses, simple_outline, complex_outline = gather_ellipses(image_path)
+
+    # Clear current canvas
+    clear_canvas(canvas)
+
+    # Make each of the possible matplotlib canvases
+    blank = make_c4nvas(im_dim=im_dim)
+    ellipses = make_c4nvas(im_dim, ellipses=finished_ellipses)
+    #ellipses_simple = make_c4nvas(ellipses=finished_ellipses, simple_outline=simple_outline)
+    #ellipses_complex = make_c4nvas(ellipses=finished_ellipses, complex_outline=complex_outline)
+    simple = make_c4nvas(im_dim, simple_outline=simple_outline)
+    compl3x = make_c4nvas(im_dim, complex_outline=complex_outline)
+
+    # Make image one
+    image_c4nvas = horse_image_w_maker(canvas, image_path)
+    image_c4nvas.get_tk_widget().place(relx=0.35,rely=0.4, anchor="center")
+
+    # Make check boxes for what to show
+    link_var = tk.IntVar()           # variable to link the radiobuttons together
+
+    place_c4nvas(blank)
+    
+    show_blank = tk.Radiobutton(canvas, text="Show Nothing", variable=link_var, value=0, command=lambda : place_c4nvas(blank, [simple, compl3x, ellipses]))
+    show_ellipses = tk.Radiobutton(canvas, text="Show Ellipses", variable=link_var, value=1, command=lambda : place_c4nvas(ellipses, [simple, compl3x, blank]))
+    show_simple = tk.Radiobutton(canvas, text="Show Simple Outline", variable=link_var, value=2, command=lambda : place_c4nvas(simple, [ellipses, compl3x, blank]))
+    show_complex = tk.Radiobutton(canvas, text="Show Complex Outline", variable=link_var, value=3, command=lambda : place_c4nvas(compl3x, [ellipses, simple, blank]))
+
+    show_blank.place(relx=0.36,rely=0.7115, anchor="center")
+    show_ellipses.place(relx=0.435,rely=0.7115, anchor="center")
+    show_simple.place(relx=0.525,rely=0.7115, anchor="center")
+    show_complex.place(relx=0.633,rely=0.7115, anchor="center")
+
+    start_again_button = tk.Button(
+    canvas,
+    text='PICK ANOTHER',
+    font=FUTURA50,
+    fg=TEAL,
+    bg=TEAL,
+    activeforeground=YELLOW,
+    command=lambda : image_picking(canvas)
+    )
+    start_again_button.place(relx=0.5,rely=0.85, anchor="center")
 
 """ IMAGE PICKING SCREEN """
 
@@ -342,6 +486,8 @@ def image_picking(canvas):
     # Get image
     image_path = filedialog.askopenfilename()
     image = cv2.imread(image_path)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = black_pix_white(image)
 
     # Clear current canvas
     clear_canvas(canvas)
