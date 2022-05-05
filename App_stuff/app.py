@@ -407,11 +407,25 @@ def black_pix_white(image):
     image[black_pixels] = [255, 255, 255]
     return image
 
+def white_pix_teal(image):
+    # get (i, j) positions of all RGB pixels that are black (i.e. [0, 0, 0])
+    white_pixels = np.where(
+        (image[:, :, 0] == 255) & 
+        (image[:, :, 1] == 255) & 
+        (image[:, :, 2] == 255)
+    )
+
+    # set those pixels to white
+    image[white_pixels] = [13, 115, 105] 
+    return image
+    
+
 def horse_image_w_maker(canvas, image_path):
     image = cv2.imread(image_path)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
     image = black_pix_white(image)
+    image = white_pix_teal(image)
 
 
     # Clear current canvas
@@ -488,6 +502,7 @@ def image_picking(canvas):
     image = cv2.imread(image_path)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     image = black_pix_white(image)
+    image = white_pix_teal(image)
 
     # Clear current canvas
     clear_canvas(canvas)
